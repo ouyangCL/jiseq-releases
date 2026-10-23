@@ -1,0 +1,45 @@
+name: Copy release asset
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_tag:
+        description: Release tag containing the existing asset
+        required: true
+        type: string
+      target_tag:
+        description: Release tag to receive the asset
+        required: true
+        type: string
+      asset_name:
+        description: Exact asset filename
+        required: true
+        type: string
+      sha256:
+        description: Expected SHA256 digest of the source asset
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download, verify, and attach asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_TAG: ${{ inputs.source_tag }}
+          TARGET_TAG: ${{ inputs.target_tag }}
+          ASSET_NAME: ${{ inputs.asset_name }}
+          EXPECTED_SHA256: ${{ inputs.sha256 }}
+        run: |
+          set -euo pipefail
+          [[ "$ASSET_NAME" =~ ^[A-Za-z0-9._-]+$ ]]
+          [[ "$EXPECTED_SHA256" =~ ^[a-fA-F0-9]{64}$ ]]
+          gh release download "$SOURCE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern "$ASSET_NAME" --dir "$RUNNER_TEMP"
+          printf '%s  %s\n' "$EXPECTED_SHA256" "$RUNNER_TEMP/$ASSET_NAME" | sha256sum --check
+          gh release upload "$TARGET_TAG" "$RUNNER_TEMP/$ASSET_NAME" \
+            --repo "$GITHUB_REPOSITORY"
